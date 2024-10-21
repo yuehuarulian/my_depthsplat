@@ -31,5 +31,5 @@ We provide models for scale-consistent depth estimation and view synthesis with 
 | depthsplat-gs-small-re10k-256x256 |   ViT-S   |  1-scale   |     37     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-small-re10k-256x256-49b2d15c.pth) |
 | depthsplat-gs-base-re10k-256x256  |   ViT-B   |  2-scale   |    117     | [download](https://huggingface.co/haofeixu/depthsplat/blob/main/depthsplat-gs-base-re10k-256x256-044fdb17.pth) |
 | depthsplat-gs-large-re10k-256x256 |   ViT-L   |  2-scale   |    360     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-large-re10k-256x256-288d9b26.pth) |
-| depthsplat-gs-base-dl3dv-256x448  |   ViT-B   |  2-scale   |    360     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-base-dl3dv-256x448-75cc0183.pth) |
+| depthsplat-gs-base-dl3dv-256x448  |   ViT-B   |  2-scale   |    117     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-base-dl3dv-256x448-75cc0183.pth) |
 
