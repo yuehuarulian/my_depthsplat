@@ -15,7 +15,7 @@
     ·
     <a href="https://people.inf.ethz.ch/marc.pollefeys/">Marc Pollefeys</a>
   </p>
-  <h3 align="center"><a href="https://arxiv.org/abs/2410.xxxxx">Paper</a> | <a href="https://haofeixu.github.io/depthsplat/">Project Page</a> </h3>
+  <h3 align="center"><a href="https://arxiv.org/abs/2410.13862">Paper</a> | <a href="https://haofeixu.github.io/depthsplat/">Project Page</a> </h3>
   <div align="center"></div>
 </p>
 <p align="center">
