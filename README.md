@@ -20,7 +20,7 @@
 </p>
 <p align="center">
   <a href="">
-    <img src="https://haofeixu.github.io/depthsplat/assets/teaser.png" alt="Logo" width="70%">
+    <img src="https://haofeixu.github.io/depthsplat/assets/teaser.png" alt="Logo" width="100%">
   </a>
 </p>
 
