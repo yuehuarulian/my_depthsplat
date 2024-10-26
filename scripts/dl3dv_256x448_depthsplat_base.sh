@@ -56,6 +56,7 @@ model.encoder.color_large_unet=true \
 model.encoder.feature_upsampler_channels=128 \
 model.encoder.multiview_trans_nearest_n_views=3 \
 model.encoder.costvolume_nearest_n_views=3 \
+train.train_ignore_large_loss=0.1 \
 model.encoder.return_depth=true \
 checkpointing.pretrained_model=${PRETRAINED_MODEL_ON_RE10K} \
 checkpointing.every_n_train_steps=500 \

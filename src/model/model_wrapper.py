@@ -354,6 +354,11 @@ class ModelWrapper(LightningModule):
         if self.global_step == 5 and self.global_rank == 0:
             os.system("nvidia-smi")
 
+        # ignore bad samples
+        if self.train_cfg.train_ignore_large_loss > 0:
+            if total_loss > self.train_cfg.train_ignore_large_loss:
+                return 0.00000001 * total_loss
+
         return total_loss
 
     def test_step(self, batch, batch_idx):

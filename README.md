@@ -62,9 +62,7 @@ The camera extrinsic matrices are OpenCV-style camera-to-world matrices ( +X rig
 
 ## Datasets
 
-For RealEstate10K, please refer to [here](https://github.com/dcharatan/pixelsplat?tab=readme-ov-file#acquiring-datasets) for acquiring the processed dataset.
-
-For DL3DV, we plan to release our processed dataset in a few days.
+Please refer to [DATASETS.md](DATASETS.md) for dataset preparation.
 
 
 
@@ -72,7 +70,7 @@ For DL3DV, we plan to release our processed dataset in a few days.
 
 Please check [scripts/inference_depth_small.sh](scripts/inference_depth_small.sh), [scripts/inference_depth_base.sh](scripts/inference_depth_base.sh), and [scripts/inference_depth_large.sh](scripts/inference_depth_large.sh) for scale-consistent depth prediction with models of different sizes.
 
-![depth](assets/depth.png)
+![depth](https://haofeixu.github.io/depthsplat/assets/depth/c37109a55effe0000f8e40652ca935376e75bcb2a0b56de8eabd20a26e2a0f68.png)
 
 
 
