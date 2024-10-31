@@ -163,13 +163,13 @@ test.stablize_camera=false \
 output_dir=output/tmp
 
 
-# render video on dl3dv (need to have ffmpeg installed)
+# render video on dl3dv from 6 views (need to have ffmpeg installed)
 CUDA_VISIBLE_DEVICES=0 python -m src.main +experiment=dl3dv \
 data_loader.train.batch_size=1 \
 dataset.test_chunk_interval=1 \
 trainer.val_check_interval=0.2 \
 train.eval_model_every_n_val=3 \
-dataset.roots=[datasets/dl3dv_full] \
+dataset.roots=[datasets/dl3dv] \
 mode=test \
 dataset.near=1. \
 dataset.far=200. \
@@ -195,6 +195,39 @@ test.save_video=true \
 test.stablize_camera=true \
 output_dir=output/tmp
 
+
+
+# render video on dl3dv from 12 views (need to have ffmpeg installed)
+CUDA_VISIBLE_DEVICES=0 python -m src.main +experiment=dl3dv \
+data_loader.train.batch_size=1 \
+dataset.test_chunk_interval=1 \
+trainer.val_check_interval=0.2 \
+train.eval_model_every_n_val=3 \
+dataset.roots=[datasets/dl3dv] \
+mode=test \
+dataset.near=1. \
+dataset.far=200. \
+dataset/view_sampler=evaluation \
+test.compute_scores=false \
+dataset.view_sampler.num_context_views=12 \
+dataset.view_sampler.index_path=assets/dl3dv_start_0_distance_100_ctx_12v_tgt_16v_video.json \
+model.encoder.num_scales=2 \
+model.encoder.upsample_factor=4 \
+model.encoder.lowest_feature_resolution=8 \
+model.encoder.monodepth_vit_type=vitb \
+model.encoder.gaussian_regressor_channels=32 \
+model.encoder.color_large_unet=true \
+model.encoder.feature_upsampler_channels=128 \
+model.encoder.multiview_trans_nearest_n_views=3 \
+model.encoder.costvolume_nearest_n_views=3 \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-base-dl3dv-256x448-75cc0183.pth \
+wandb.project=depthsplat \
+wandb.mode=disabled \
+test.save_image=false \
+test.save_depth=false \
+test.save_video=true \
+test.stablize_camera=true \
+output_dir=output/tmp
 
 
 
