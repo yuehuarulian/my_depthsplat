@@ -45,4 +45,7 @@ class LocalLogger(Logger):
         for index, image in enumerate(images):
             path = LOG_PATH / f"{key}/{index:0>2}_{step:0>6}.png"
             path.parent.mkdir(exist_ok=True, parents=True)
-            Image.fromarray(image).save(path)
+            if isinstance(image, torch.Tensor):
+                Image.fromarray(image.permute(1, 2, 0).numpy().astype(np.uint8)).save(path)
+            else:
+                Image.fromarray(image).save(path)
