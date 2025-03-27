@@ -85,7 +85,7 @@ For dataset preparation, please refer to [DATASETS.md](DATASETS.md).
 
 
 - `dataset.test_chunk_interval=1`: Running on the full test set can be time-consuming due to the large number of scenes. You can run on a fraction of the test set for debugging or validation purposes. For example, setting `dataset.test_chunk_interval=10` will evaluate on 1/10 of the full test set.
-- `output_dir=outputs/depthsplat-re10k`: Directory to save the results.
+- `output_dir=outputs/depthsplat`: Directory to save the results.
 - `test.save_image=true`: Save the rendered images.
 - `test.save_gt_image=true`: Save the ground truth (GT) images.
 - `test.save_input_images=true`: Save the input images.
@@ -131,6 +131,10 @@ output_dir=outputs/depthsplat-re10k-512x960
 ```
 
 </details>
+
+
+
+https://github.com/user-attachments/assets/3f228a3f-8d54-4a90-9db4-ff0874150883
 
 
 
@@ -192,6 +196,12 @@ output_dir=outputs/depthsplat-dl3dv-512x960
 </details>
 
 
+
+https://github.com/user-attachments/assets/1d5c17d4-d85a-4e42-a44f-2fdb3116ee05
+
+
+
+
 ### Evaluation
 
 
@@ -202,7 +212,7 @@ output_dir=outputs/depthsplat-dl3dv-512x960
 <summary>Evaluation scripts (small, base, and large models)</summary>
 
 
-- To evalute the large model, use:
+- To evalute the large model:
 ```
 # Table 1 of depthsplat paper
 CUDA_VISIBLE_DEVICES=0 python -m src.main +experiment=re10k \
