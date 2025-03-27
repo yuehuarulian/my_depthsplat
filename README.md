@@ -33,6 +33,9 @@ Right: Unsupervised depth pre-training with Gaussian splatting leads to reduced 
 </p>
 
 
+## Updates
+
+- 2025-03-27: We simplified our model architecture while preparing the CVPR camera-ready version. The models have been re-trained, and the [paper](https://arxiv.org/abs/2410.13862) has been updated accordingly. The new models are now simpler, faster, and perform as well as or better than the previous version. We also simplified the configs and scripts and added more documentation about the configurations.
 
 ## Installation
 
@@ -99,6 +102,7 @@ For dataset preparation, please refer to [DATASETS.md](DATASETS.md).
 
 ### Rendering Video
 
+DepthSplat enables feed-forward reconstruction from 12 input views (512x960 resolutions) in 0.6 seconds on a single A100 GPU.
 
 #### RealEstate10K
 
@@ -197,7 +201,8 @@ output_dir=outputs/depthsplat-dl3dv-512x960
 
 
 
-https://github.com/user-attachments/assets/1d5c17d4-d85a-4e42-a44f-2fdb3116ee05
+
+https://github.com/user-attachments/assets/ea6d3b9c-af80-43e6-9a12-36c67e874366
 
 
 
