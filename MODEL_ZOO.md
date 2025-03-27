@@ -1,11 +1,14 @@
 # Model Zoo
 
-We provide pre-trained models for view synthesis with 3D Gaussian splatting and scale-consistent depth estimation from multi-view posed images.
+- We provide pre-trained models for view synthesis with 3D Gaussian splatting and scale-consistent depth estimation from multi-view posed images.
 
-We assume that the downloaded weights are stored in the `pretrained` directory. It's recommended to create a symbolic link from `YOUR_MODEL_PATH` to `pretrained` using
+- We assume that the downloaded weights are stored in the `pretrained` directory. It's recommended to create a symbolic link from `YOUR_MODEL_PATH` to `pretrained` using
 ```
 ln -s YOUR_MODEL_PATH pretrained
 ```
+
+- To verify the integrity of downloaded files, each model on this page includes its [sha256sum](https://sha256sum.com/) prefix in the file name, which can be checked using the command `sha256sum filename`.
+
 
 ## Gaussian Splatting
 
@@ -13,13 +16,11 @@ ln -s YOUR_MODEL_PATH pretrained
 
 - The "&rarr;" symbol indicates that the models are trained in two stages. For example, "re10k &rarr; (re10k+dl3dv)" means the model is firstly trained on the RealEstate10K dataset and then fine-tuned using a combination of the RealEstate10K and DL3DV datasets.
 
-- To verify the integrity of downloaded files, each model on this page includes its [sha256sum](https://sha256sum.com/) prefix in the file name, which can be checked using the command `sha256sum filename`.
-
 
 | Model                                                        |       Training Data        |  Training Resolution  | Training Views | Params (M) |                           Download                           |
 | ------------------------------------------------------------ | :------------------------: | :-------------------: | :------------: | :--------: | :----------------------------------------------------------: |
 | depthsplat-gs-small-re10k-256x256-view2-20f39ed8.pth         |           re10k            |        256x256        |       2        |     37     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-small-re10k-256x256-view2-20f39ed8.pth) |
-| depthsplat-gs-base-re10k-256x256-view2-fbe87117.pth          |           re10k            |        256x256        |       2        |    117     | [download](https://huggingface.co/haofeixu/depthsplat/blob/main/depthsplat-gs-base-re10k-256x256-view2-fbe87117.pth) |
+| depthsplat-gs-base-re10k-256x256-view2-fbe87117.pth          |           re10k            |        256x256        |       2        |    117     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-base-re10k-256x256-view2-fbe87117.pth) |
 | depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth         |           re10k            |        256x256        |       2        |    360     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth) |
 | depthsplat-gs-base-re10k-256x448-view2-76a0605a.pth          |           re10k            |        256x448        |       2        |    117     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-base-re10k-256x448-view2-76a0605a.pth) |
 | depthsplat-gs-base-dl3dv-256x448-randview2-6-d94d996f.pth    |     re10k &rarr; dl3dv     |        256x448        |      2-6       |    117     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-gs-base-dl3dv-256x448-randview2-6-d94d996f.pth) |
@@ -39,7 +40,7 @@ ln -s YOUR_MODEL_PATH pretrained
 
 | Model                                                   |                  Training Data                   |  Training Resolution   | Training Views | Params (M) |                           Download                           |
 | ------------------------------------------------------- | :----------------------------------------------: | :--------------------: | :------------: | :--------: | :----------------------------------------------------------: |
-| depthsplat-depth-small-352x640-randview2-8-e807bd82.pth | (re10k+dl3dv) &rarr; (scannet+tartanair-vkitti2) | 448x768 &rarr; 352x640 |      2-8       |     36     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-depth-small-352x640-randview2-8-e807bd82.pth) |
-| depthsplat-depth-base-352x640-randview2-8-65a892c5.pth  | (re10k+dl3dv) &rarr; (scannet+tartanair-vkitti2) | 448x768 &rarr; 352x640 |      2-8       |    111     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-depth-base-352x640-randview2-8-65a892c5.pth) |
+| depthsplat-depth-small-352x640-randview2-8-e807bd82.pth | (re10k+dl3dv) &rarr; (scannet+tartanair+vkitti2) | 448x768 &rarr; 352x640 |      2-8       |     36     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-depth-small-352x640-randview2-8-e807bd82.pth) |
+| depthsplat-depth-base-352x640-randview2-8-65a892c5.pth  | (re10k+dl3dv) &rarr; (scannet+tartanair+vkitti2) | 448x768 &rarr; 352x640 |      2-8       |    111     | [download](https://huggingface.co/haofeixu/depthsplat/resolve/main/depthsplat-depth-base-352x640-randview2-8-65a892c5.pth) |
 
 
