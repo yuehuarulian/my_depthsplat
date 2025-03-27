@@ -12,7 +12,7 @@ wandb:
 
 data_loader:
   train:
-    batch_size: 14
+    batch_size: 1
 
 trainer:
   max_steps: 300_001
@@ -37,7 +37,7 @@ loss:
     weight: 0.05
 
 dataset: 
-  near: 1.
+  near: 0.5
   far: 200.
   baseline_scale_bounds: false
   make_baseline_1: false
@@ -47,5 +47,5 @@ dataset:
 
 test:
   eval_time_skip_steps: 0
-  compute_scores: false
+  compute_scores: true
   dec_chunk_size: 30

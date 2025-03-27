@@ -64,3 +64,19 @@ test.save_gt_image=false \
 output_dir=output/tmp
 
 
+# evaluate on re10k
+CUDA_VISIBLE_DEVICES=0 python -m src.main +experiment=re10k \
+dataset.test_chunk_interval=1 \
+model.encoder.num_scales=2 \
+model.encoder.upsample_factor=2 \
+model.encoder.lowest_feature_resolution=4 \
+model.encoder.monodepth_vit_type=vitb \
+checkpointing.pretrained_model=../depthsplat/pretrained/depthsplat-camera-ready-release/depthsplat-gs-base-re10k-256x256-view2-fbe87117.pth \
+mode=test \
+dataset/view_sampler=evaluation \
+test.compute_scores=true \
+wandb.mode=disabled \
+test.save_image=false \
+test.save_gt_image=false \
+output_dir=output/tmp
+

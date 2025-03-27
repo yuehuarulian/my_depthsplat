@@ -24,22 +24,36 @@ output_dir=checkpoints/re10k-depthsplat-large
 
 # evaluate on re10k
 CUDA_VISIBLE_DEVICES=0 python -m src.main +experiment=re10k \
-dataset.test_chunk_interval=1 \
+dataset.test_chunk_interval=100 \
 model.encoder.num_scales=2 \
 model.encoder.upsample_factor=2 \
 model.encoder.lowest_feature_resolution=4 \
 model.encoder.monodepth_vit_type=vitl \
-model.encoder.gaussian_regressor_channels=64 \
-model.encoder.color_large_unet=true \
-model.encoder.feature_upsampler_channels=128 \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-288d9b26.pth \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth \
 mode=test \
 dataset/view_sampler=evaluation \
-test.compute_scores=true \
-wandb.mode=disabled \
-test.save_image=false \
-test.save_gt_image=false \
-output_dir=output/tmp
+
+
+
+CUDA_VISIBLE_DEVICES=0 python -m src.main +experiment=re10k \
+dataset.test_chunk_interval=1000 \
+model.encoder.num_scales=2 \
+model.encoder.upsample_factor=2 \
+model.encoder.lowest_feature_resolution=4 \
+model.encoder.monodepth_vit_type=vitl \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth \
+mode=test \
+dataset/view_sampler=evaluation \
+output_dir=outputs/tmp \
+test.save_image=true \
+test.save_gt_image=true \
+test.save_input_images=true \
+test.save_depth=true \
+test.save_depth_concat_img=true \
+test.save_depth_npy=true \
+test.save_gaussian=true
+
+
 
 
 # render video on re10k (need to have ffmpeg installed)
@@ -63,3 +77,20 @@ test.save_image=false \
 test.save_gt_image=false \
 output_dir=output/tmp
 
+
+
+# evaluate on re10k
+CUDA_VISIBLE_DEVICES=0 python -m src.main +experiment=re10k \
+dataset.test_chunk_interval=1 \
+model.encoder.num_scales=2 \
+model.encoder.upsample_factor=2 \
+model.encoder.lowest_feature_resolution=4 \
+model.encoder.monodepth_vit_type=vitl \
+checkpointing.pretrained_model=../depthsplat/pretrained/depthsplat-camera-ready-release/depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth \
+mode=test \
+dataset/view_sampler=evaluation \
+test.compute_scores=true \
+wandb.mode=disabled \
+test.save_image=false \
+test.save_gt_image=false \
+output_dir=output/tmp

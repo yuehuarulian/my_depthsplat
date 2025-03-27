@@ -1,20 +1,14 @@
 name: depthsplat
 
-opacity_mapping:
-  initial: 0.0
-  final: 0.0
-  warm_up: 1
-  no_mapping: false
-
 num_depth_candidates: 128
 num_surfaces: 1
 
 gaussians_per_pixel: 1
 
 gaussian_adapter:
-  gaussian_scale_min: 0.1
-  gaussian_scale_max: 0.3
-  sh_degree: 4
+  gaussian_scale_min: 0.5
+  gaussian_scale_max: 15.
+  sh_degree: 2
 
 d_feature: 128
 
@@ -34,15 +28,14 @@ depth_unet_channel_mult: [1, 1, 1]
 downscale_factor: 4
 shim_patch_size: 4
 
-costvolume_nearest_n_views: null
-multiview_trans_nearest_n_views: null
+local_mv_match: 2
 
 # monodepth
 monodepth_vit_type: vits
 
 # return depth
 supervise_intermediate_depth: true
-return_depth: false
+return_depth: true
 
 # mv_unimatch
 num_scales: 1
