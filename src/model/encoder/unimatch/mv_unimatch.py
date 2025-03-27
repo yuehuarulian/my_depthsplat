@@ -531,7 +531,7 @@ class MultiViewUniMatch(nn.Module):
             )  # [BV, 1, H, W]
 
             # upsample to the original resolution for supervison at training time only
-            if self.training:
+            if self.training and scale_idx < self.num_scales - 1:
                 depth_bilinear = F.interpolate(
                     depth,
                     scale_factor=downsample_factor,

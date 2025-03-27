@@ -102,7 +102,7 @@ def get_world_rays(
         torch.ones_like(coordinates[..., 0]),
         intrinsics,
     )
-    directions = directions / directions.norm(dim=-1, keepdim=True)
+    directions = directions / directions[..., -1:]
 
     # Transform ray directions to world coordinates.
     directions = homogenize_vectors(directions)

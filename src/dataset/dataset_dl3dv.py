@@ -261,11 +261,21 @@ class DatasetDL3DV(IterableDataset):
                         # print('invalid extrinsics')
                         continue
 
+                    # check the extrinsics: translation could be very large
+                    # https://github.com/DL3DV-10K/Dataset/issues/34
+                    if (extrinsics[context_indices][:, :3, 3] > 1e3).any():
+                        # print('extremely large camera translation')
+                        continue
+
+                    if (extrinsics[target_indices][:, :3, 3] > 1e3).any():
+                        # print('extremely large camera translation')
+                        continue
+
                     if not torch.allclose(torch.det(extrinsics[context_indices][:, :3, :3]), torch.det(extrinsics[context_indices][:, :3, :3]).new_tensor(1)):
-                        print('invalid extrinsics')
+                        # print('invalid extrinsics')
                         continue
                     if not torch.allclose(torch.det(extrinsics[target_indices][:, :3, :3]), torch.det(extrinsics[target_indices][:, :3, :3]).new_tensor(1)):
-                        print('invalid extrinsics')
+                        # print('invalid extrinsics')
                         continue
 
                     nf_scale = 1.0

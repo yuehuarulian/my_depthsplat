@@ -17,17 +17,8 @@ from .visualization.encoder_visualizer_depthsplat_cfg import EncoderVisualizerDe
 import torchvision.transforms as T
 import torch.nn.functional as F
 
-from .unimatch.mv_unimatch import MultiViewUniMatch, set_num_views
-from .unimatch.ldm_unet.unet import UNetModel
-from .unimatch.feature_upsampler import ResizeConvFeatureUpsampler
-
-
-@dataclass
-class OpacityMappingCfg:
-    initial: float
-    final: float
-    warm_up: int
-    no_mapping: bool
+from .unimatch.mv_unimatch import MultiViewUniMatch
+from .unimatch.dpt_head import DPTHead
 
 
 @dataclass
@@ -38,7 +29,6 @@ class EncoderDepthSplatCfg:
     num_surfaces: int
     visualizer: EncoderVisualizerDepthSplatCfg
     gaussian_adapter: GaussianAdapterCfg
-    opacity_mapping: OpacityMappingCfg
     gaussians_per_pixel: int
     unimatch_weights_path: str | None
     downscale_factor: int
@@ -76,8 +66,7 @@ class EncoderDepthSplatCfg:
     monodepth_vit_type: str
 
     # multi-view matching
-    costvolume_nearest_n_views: Optional[int] = None
-    multiview_trans_nearest_n_views: Optional[int] = None
+    local_mv_match: int
 
 
 class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
@@ -96,79 +85,47 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
         if self.cfg.train_depth_only:
             return
 
-        # upsample to the original resolution
-        self.feature_upsampler = ResizeConvFeatureUpsampler(num_scales=cfg.num_scales,
-                                                            lowest_feature_resolution=cfg.lowest_feature_resolution,
-                                                            out_channels=self.cfg.feature_upsampler_channels,
-                                                            vit_type=self.cfg.monodepth_vit_type,
-                                                            )
-        feature_upsampler_channels = self.cfg.feature_upsampler_channels
+        # upsample features to the original resolution
+        model_configs = {
+            'vits': {'in_channels': 384, 'features': 64, 'out_channels': [48, 96, 192, 384]},
+            'vitb': {'in_channels': 768, 'features': 96, 'out_channels': [96, 192, 384, 768]},
+            'vitl': {'in_channels': 1024, 'features': 128, 'out_channels': [128, 256, 512, 1024]},
+        }
+
+        self.feature_upsampler = DPTHead(**model_configs[cfg.monodepth_vit_type],
+                                        downsample_factor=cfg.upsample_factor,
+                                        return_feature=True,
+                                        num_scales=cfg.num_scales,
+                                        )
+        feature_upsampler_channels = model_configs[cfg.monodepth_vit_type]["features"]
         
         # gaussians adapter
         self.gaussian_adapter = GaussianAdapter(cfg.gaussian_adapter)
 
-        # unet
         # concat(img, depth, match_prob, features)
         in_channels = 3 + 1 + 1 + feature_upsampler_channels
         channels = self.cfg.gaussian_regressor_channels
 
+        # conv regressor
         modules = [
-            nn.Conv2d(in_channels, channels, 3, 1, 1),
-            nn.GroupNorm(8, channels),
-            nn.GELU(),
-        ]
-
-        if self.cfg.color_large_unet or self.cfg.gaussian_regressor_channels == 16:
-            unet_channel_mult = [1, 2, 4, 4, 4]
-        else:
-            unet_channel_mult = [1, 1, 1, 1, 1]
-        unet_attn_resolutions = [16]
-
-        modules.append(
-            UNetModel(
-                image_size=None,
-                in_channels=channels,
-                model_channels=channels,
-                out_channels=channels,
-                num_res_blocks=1,
-                attention_resolutions=unet_attn_resolutions,
-                channel_mult=unet_channel_mult,
-                num_head_channels=32 if self.cfg.gaussian_regressor_channels >= 32 else 16,
-                dims=2,
-                postnorm=False,
-                num_frames=2,
-                use_cross_view_self_attn=True,
-            )
-        )
-
-        modules.append(nn.Conv2d(channels, channels, 3, 1, 1))
+                    nn.Conv2d(in_channels, channels, 3, 1, 1),
+                    nn.GELU(),
+                    nn.Conv2d(channels, channels, 3, 1, 1),
+                ]
 
         self.gaussian_regressor = nn.Sequential(*modules)
 
-        # predict gaussian parameters: scale, q, sh
-        num_gaussian_parameters = self.gaussian_adapter.d_in + 2
+        # predict gaussian parameters: scale, q, sh, offset, opacity
+        num_gaussian_parameters = self.gaussian_adapter.d_in + 2 + 1
 
-        # predict opacity
-        num_gaussian_parameters += 1
-
-        # concat(img, features, unet_out, match_prob)
+        # concat(img, features, regressor_out, match_prob)
         in_channels = 3 + feature_upsampler_channels + channels + 1
-
-        if self.cfg.feature_upsampler_channels != 128:
-            self.gaussian_head = nn.Sequential(
+        self.gaussian_head = nn.Sequential(
                 nn.Conv2d(in_channels, num_gaussian_parameters,
-                            3, 1, 1, padding_mode='replicate'),
+                          3, 1, 1, padding_mode='replicate'),
                 nn.GELU(),
                 nn.Conv2d(num_gaussian_parameters,
-                            num_gaussian_parameters, 3, 1, 1, padding_mode='replicate')
-            )
-        else:
-            self.gaussian_head = nn.Sequential(
-                nn.Conv2d(
-                    in_channels, num_gaussian_parameters * 2, 3, 1, 1, padding_mode='replicate'),
-                nn.GELU(),
-                nn.Conv2d(num_gaussian_parameters * 2,
-                            num_gaussian_parameters, 3, 1, 1, padding_mode='replicate')
+                          num_gaussian_parameters, 3, 1, 1, padding_mode='replicate')
             )
 
         if self.cfg.init_sh_input_img:
@@ -191,18 +148,13 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
         device = context["image"].device
         b, v, _, h, w = context["image"].shape
 
-        if (
-            self.cfg.costvolume_nearest_n_views is not None
-            or self.cfg.multiview_trans_nearest_n_views is not None
-        ):
-            assert self.cfg.costvolume_nearest_n_views is not None
+        if v > 3:
             with torch.no_grad():
                 xyzs = context["extrinsics"][:, :, :3, -1].detach()
                 cameras_dist_matrix = torch.cdist(xyzs, xyzs, p=2)
                 cameras_dist_index = torch.argsort(cameras_dist_matrix)
 
-                cameras_dist_index = cameras_dist_index[:,
-                                                        :, :self.cfg.costvolume_nearest_n_views]
+                cameras_dist_index = cameras_dist_index[:, :, :(self.cfg.local_mv_match + 1)]
         else:
             cameras_dist_index = None
 
@@ -254,14 +206,12 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
                 "depths": depths
             }
 
-        # update the num_views in unet attention, useful for random input views
-        set_num_views(self.gaussian_regressor, v)
-
         # features [BV, C, H, W]
-        features = self.feature_upsampler(results_dict["features_cnn"],
-                                            results_dict["features_mv"],
-                                            results_dict["features_mono"],
-                                            )
+        features = self.feature_upsampler(results_dict["features_mono_intermediate"],
+                                          cnn_features=results_dict["features_cnn_all_scales"][::-1],
+                                          mv_features=results_dict["features_mv"][
+                                          0] if self.cfg.num_scales == 1 else results_dict["features_mv"][::-1]
+                                          )
 
         # match prob from softmax
         # [BV, D, H, W] in feature resolution

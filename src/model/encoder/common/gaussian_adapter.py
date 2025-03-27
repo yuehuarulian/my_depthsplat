@@ -60,9 +60,15 @@ class GaussianAdapter(nn.Module):
     ) -> Gaussians:
         scales, rotations, sh = raw_gaussians.split((3, 4, 3 * self.d_sh), dim=-1)
 
-        assert input_images is not None
+        scale_min = self.cfg.gaussian_scale_min
+        scale_max = self.cfg.gaussian_scale_max
+        scales = scale_min + (scale_max - scale_min) * scales.sigmoid()
+        h, w = image_shape
+        pixel_size = 1 / torch.tensor((w, h), dtype=torch.float32, device=extrinsics.device)
+        multiplier = self.get_scale_multiplier(intrinsics, pixel_size)
+        scales = scales * depths[..., None] * multiplier[..., None]
 
-        scales = torch.clamp(torch.exp(scales - 4), max=self.cfg.gaussian_scale_max)
+        assert input_images is not None
 
         # Normalize the quaternion features to yield a valid quaternion.
         rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from einops import einsum, rearrange
+from einops import einsum, rearrange, repeat
 from jaxtyping import Float
 from plyfile import PlyData, PlyElement
 from scipy.spatial.transform import Rotation as R
@@ -32,48 +32,19 @@ def export_ply(
     opacities: Float[Tensor, " gaussian"],
     path: Path,
 ):
-    # Shift the scene so that the median Gaussian is at the origin.
-    means = means - means.median(dim=0).values
 
-    # Rescale the scene so that most Gaussians are within range [-1, 1].
-    scale_factor = means.abs().quantile(0.95, dim=0).max()
-    means = means / scale_factor
-    scales = scales / scale_factor
-
-    # Define a rotation that makes +Z be the world up vector.
-    rotation = [
-        [0, 0, 1],
-        [-1, 0, 0],
-        [0, -1, 0],
-    ]
-    rotation = torch.tensor(rotation, dtype=torch.float32, device=means.device)
-
-    # The Polycam viewer seems to start at a 45 degree angle. Since we want to be
-    # looking directly at the object, we compose a 45 degree rotation onto the above
-    # rotation.
-    adjustment = torch.tensor(
-        R.from_rotvec([0, 0, -45], True).as_matrix(),
-        dtype=torch.float32,
-        device=means.device,
-    )
-    rotation = adjustment @ rotation
-
-    # We also want to see the scene in camera space (as the default view). We therefore
-    # compose the w2c rotation onto the above rotation.
-    rotation = rotation @ extrinsics[:3, :3].inverse()
-
+    view_rotation = extrinsics[:3, :3].inverse()
     # Apply the rotation to the means (Gaussian positions).
-    means = einsum(rotation, means, "i j, ... j -> ... i")
+    means = einsum(view_rotation, means, "i j, ... j -> ... i")
 
     # Apply the rotation to the Gaussian rotations.
     rotations = R.from_quat(rotations.detach().cpu().numpy()).as_matrix()
-    rotations = rotation.detach().cpu().numpy() @ rotations
+    rotations = view_rotation.detach().cpu().numpy() @ rotations
     rotations = R.from_matrix(rotations).as_quat()
     x, y, z, w = rearrange(rotations, "g xyzw -> xyzw g")
     rotations = np.stack((w, x, y, z), axis=-1)
 
-    # Since our axes are swizzled for the spherical harmonics, we only export the DC
-    # band.
+    # Since our axes are swizzled for the spherical harmonics, we only export the DC band
     harmonics_view_invariant = harmonics[..., 0]
 
     dtype_full = [(attribute, "f4") for attribute in construct_list_of_attributes(0)]
@@ -90,3 +61,57 @@ def export_ply(
     elements[:] = list(map(tuple, attributes))
     path.parent.mkdir(exist_ok=True, parents=True)
     PlyData([PlyElement.describe(elements, "vertex")]).write(path)
+    
+
+def save_gaussian_ply(gaussians, visualization_dump, example, save_path):
+
+    v, _, h, w = example["context"]["image"].shape[1:]
+
+    # Transform means into camera space.
+    means = rearrange(
+        gaussians.means, "() (v h w spp) xyz -> h w spp v xyz", v=v, h=h, w=w
+    )
+
+    # Create a mask to filter the Gaussians. throw away Gaussians at the
+    # borders, since they're generally of lower quality.
+    mask = torch.zeros_like(means[..., 0], dtype=torch.bool)
+    GAUSSIAN_TRIM = 4
+    mask[GAUSSIAN_TRIM:-GAUSSIAN_TRIM, GAUSSIAN_TRIM:-GAUSSIAN_TRIM, :, :] = 1
+
+    def trim(element):
+        element = rearrange(
+            element, "() (v h w spp) ... -> h w spp v ...", v=v, h=h, w=w
+        )
+        return element[mask][None]
+
+    # convert the rotations from camera space to world space as required
+    cam_rotations = trim(visualization_dump["rotations"])[0]
+    c2w_mat = repeat(
+        example["context"]["extrinsics"][0, :, :3, :3],
+        "v a b -> h w spp v a b",
+        h=h,
+        w=w,
+        spp=1,
+    )
+    c2w_mat = c2w_mat[mask]  # apply trim
+
+    cam_rotations_np = R.from_quat(
+        cam_rotations.detach().cpu().numpy()
+    ).as_matrix()
+    world_mat = c2w_mat.detach().cpu().numpy() @ cam_rotations_np
+    world_rotations = R.from_matrix(world_mat).as_quat()
+    world_rotations = torch.from_numpy(world_rotations).to(
+        visualization_dump["scales"]
+    )
+
+    export_ply(
+        example["context"]["extrinsics"][0, 0],
+        trim(gaussians.means)[0],
+        trim(visualization_dump["scales"])[0],
+        world_rotations,
+        trim(gaussians.harmonics)[0],
+        trim(gaussians.opacities)[0],
+        save_path,
+    )
+
+

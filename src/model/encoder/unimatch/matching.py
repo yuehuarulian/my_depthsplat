@@ -72,6 +72,10 @@ def warp_with_pose_depth_candidates(
 
     # sample features
     # ref: https://github.com/pytorch/pytorch/issues/88380
+    # print(feature1.shape, grid.shape)
+    # hardcoded workaround
+    if feature1.numel() > 1000000:
+        grid_sample_disable_cudnn = True
     with torch.backends.cudnn.flags(enabled=not grid_sample_disable_cudnn):
         warped_feature = F.grid_sample(
             feature1,
