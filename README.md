@@ -35,7 +35,7 @@ Right: Unsupervised depth pre-training with Gaussian splatting leads to reduced 
 
 ## Updates
 
-- 2025-03-27: We simplified our model architecture while preparing the CVPR camera-ready version. The models have been re-trained, and the [paper](https://arxiv.org/abs/2410.13862) has been updated accordingly. The new models are now simpler, faster, and perform as well as or better than the previous version. We also simplified the configs and scripts and added more documentation about the configurations.
+- 2025-03-27: We simplified our model architecture while preparing the CVPR camera-ready version. The models have been re-trained, and the [paper](https://arxiv.org/abs/2410.13862) has been updated accordingly. [The new models](MODEL_ZOO.md) are now simpler, faster, and perform as well as or better than the previous version.
 
 ## Installation
 
