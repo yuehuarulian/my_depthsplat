@@ -16,7 +16,7 @@
     <a href="https://people.inf.ethz.ch/marc.pollefeys/">Marc Pollefeys</a>
   </p>
   <h3 align="center">CVPR 2025</h3>
-  <h3 align="center"><a href="https://arxiv.org/abs/2410.13862">Paper</a> | <a href="https://haofeixu.github.io/depthsplat/">Project Page</a> | <a href="https://huggingface.co/haofeixu/depthsplat">Model</a> </h3>
+  <h3 align="center"><a href="https://arxiv.org/abs/2410.13862">Paper</a> | <a href="https://haofeixu.github.io/depthsplat/">Project Page</a> | <a href="https://huggingface.co/haofeixu/depthsplat">Models</a> </h3>
   <div align="center"></div>
 </p>
 <p align="center">
@@ -95,7 +95,7 @@ For dataset preparation, please refer to [DATASETS.md](DATASETS.md).
 - `test.save_depth=true`: Save the predicted depths.
 - `test.save_depth_concat_img=true`: Save the concatenated images and depths.
 - `test.save_depth_npy=true`: Save the raw depth predictions in `.npy`.
-- `test.save_gaussian=true`: Save the reconstructed Gaussians in `.ply` files, which can be viewed using online viewers like [Antimatter15](https://antimatter15.com/splat/) or [Mark Kellogg](https://projects.markkellogg.org/threejs/demo_gaussian_splats_3d.php).
+- `test.save_gaussian=true`: Save the reconstructed Gaussians in `.ply` files, which can be viewed using online viewers like [SuperSplat](https://superspl.at/editor), [Antimatter15](https://antimatter15.com/splat/), etc.
 
 <!-- </details> -->
 
@@ -123,7 +123,8 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=4 \
 model.encoder.lowest_feature_resolution=8 \
 model.encoder.monodepth_vit_type=vitb \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-base-re10kdl3dv-448x768-randview2-6-f40abc4f.pth \
+model.encoder.gaussian_adapter.gaussian_scale_max=0.1 \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-base-re10kdl3dv-448x768-randview2-6-f8ddd845.pth \
 mode=test \
 dataset/view_sampler=evaluation \
 dataset.view_sampler.num_context_views=6 \
@@ -154,7 +155,7 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=2 \
 model.encoder.lowest_feature_resolution=4 \
 model.encoder.monodepth_vit_type=vitl \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-e0f0f27a.pth \
 mode=test \
 dataset/view_sampler=evaluation \
 dataset.view_sampler.index_path=assets/evaluation_index_re10k_video.json \
@@ -185,7 +186,8 @@ dataset.image_shape=[512,960] \
 dataset.ori_image_shape=[540,960] \
 model.encoder.upsample_factor=8 \
 model.encoder.lowest_feature_resolution=8 \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-small-re10kdl3dv-448x768-randview4-10-1e257b90.pth \
+model.encoder.gaussian_adapter.gaussian_scale_max=0.1 \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-small-re10kdl3dv-448x768-randview4-10-c08188db.pth \
 mode=test \
 dataset/view_sampler=evaluation \
 dataset.view_sampler.num_context_views=12 \
@@ -216,6 +218,7 @@ https://github.com/user-attachments/assets/ea6d3b9c-af80-43e6-9a12-36c67e874366
 <details>
 <summary>Evaluation scripts (small, base, and large models)</summary>
 
+Please note that the numbers may differ slightly from those reported in the paper, as the models have been re-trained.
 
 - To evalute the large model:
 ```
@@ -226,7 +229,7 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=2 \
 model.encoder.lowest_feature_resolution=4 \
 model.encoder.monodepth_vit_type=vitl \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-e0f0f27a.pth \
 mode=test \
 dataset/view_sampler=evaluation
 ```
@@ -246,7 +249,7 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=2 \
 model.encoder.lowest_feature_resolution=4 \
 model.encoder.monodepth_vit_type=vitb \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-base-re10k-256x256-view2-fbe87117.pth \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-base-re10k-256x256-view2-ca7b6795.pth \
 mode=test \
 dataset/view_sampler=evaluation
 ```
@@ -265,7 +268,7 @@ CUDA_VISIBLE_DEVICES=0 python -m src.main +experiment=re10k \
 dataset.test_chunk_interval=1 \
 model.encoder.upsample_factor=4 \
 model.encoder.lowest_feature_resolution=4 \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-small-re10k-256x256-view2-20f39ed8.pth \
+checkpointing.pretrained_model=pretrained/depthsplat-gs-small-re10k-256x256-view2-cfeab6b1.pth \
 mode=test \
 dataset/view_sampler=evaluation
 ```
@@ -290,7 +293,7 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=4 \
 model.encoder.lowest_feature_resolution=8 \
 model.encoder.monodepth_vit_type=vitb \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-base-dl3dv-256x448-randview2-6-d94d996f.pth
+checkpointing.pretrained_model=pretrained/depthsplat-gs-base-dl3dv-256x448-randview2-6-02c7b19d.pth
 ```
 
 
@@ -310,7 +313,7 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=4 \
 model.encoder.lowest_feature_resolution=8 \
 model.encoder.monodepth_vit_type=vitb \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-base-dl3dv-256x448-randview2-6-d94d996f.pth
+checkpointing.pretrained_model=pretrained/depthsplat-gs-base-dl3dv-256x448-randview2-6-02c7b19d.pth
 ```
 
 <!-- </details>
@@ -332,7 +335,7 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=4 \
 model.encoder.lowest_feature_resolution=8 \
 model.encoder.monodepth_vit_type=vitb \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-base-dl3dv-256x448-randview2-6-d94d996f.pth
+checkpointing.pretrained_model=pretrained/depthsplat-gs-base-dl3dv-256x448-randview2-6-02c7b19d.pth
 ```
 
 <!-- </details>
@@ -354,7 +357,7 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=2 \
 model.encoder.lowest_feature_resolution=4 \
 model.encoder.monodepth_vit_type=vitl \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth
+checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-e0f0f27a.pth
 ```
 
 
@@ -383,7 +386,7 @@ model.encoder.num_scales=2 \
 model.encoder.upsample_factor=2 \
 model.encoder.lowest_feature_resolution=4 \
 model.encoder.monodepth_vit_type=vitl \
-checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-8ee2ec2c.pth
+checkpointing.pretrained_model=pretrained/depthsplat-gs-large-re10k-256x256-view2-e0f0f27a.pth
 ```
 
 
@@ -407,7 +410,6 @@ wget https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/
 
 We fine-tune our Gaussian Splatting pre-trained depth model using ground-truth depth supervision. The depth models are trained with a randomly selected number of input images (ranging from 2 to 8) and can be used for depth prediction from multi-view posed images. For more details, please refer to [scripts/inference_depth.sh](scripts/inference_depth.sh).
 
-A simple inference pipeline is cooking, stay tuned... 🍳🔥🚀
 
 <p align="center">
   <a href="">
