@@ -20,7 +20,7 @@ output_dir=checkpoints/re10k-256x448-depthsplat-base
 
 
 # finetune on dl3dv, random view 2-6
-# train on 4x GPUs (>=80GB VRAM) for 100K steps, batch size 1 on each gpu
+# train on 8x GPUs (>=80GB VRAM) for 100K steps, batch size 1 on each gpu
 # resume from the previously pretrained model on re10k
 python -m src.main +experiment=dl3dv \
 data_loader.train.batch_size=1 \
@@ -30,6 +30,7 @@ dataset.view_sampler.num_context_views=6 \
 dataset.min_views=2 \
 dataset.max_views=6 \
 trainer.max_steps=100000 \
+trainer.num_nodes=2 \
 model.encoder.num_scales=2 \
 model.encoder.upsample_factor=4 \
 model.encoder.lowest_feature_resolution=8 \

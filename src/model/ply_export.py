@@ -53,7 +53,7 @@ def export_ply(
         means.detach().cpu().numpy(),
         torch.zeros_like(means).detach().cpu().numpy(),
         harmonics_view_invariant.detach().cpu().contiguous().numpy(),
-        opacities[..., None].detach().cpu().numpy(),
+        torch.logit(opacities[..., None]).detach().cpu().numpy(),
         scales.log().detach().cpu().numpy(),
         rotations,
     )
@@ -75,7 +75,7 @@ def save_gaussian_ply(gaussians, visualization_dump, example, save_path):
     # Create a mask to filter the Gaussians. throw away Gaussians at the
     # borders, since they're generally of lower quality.
     mask = torch.zeros_like(means[..., 0], dtype=torch.bool)
-    GAUSSIAN_TRIM = 4
+    GAUSSIAN_TRIM = 8
     mask[GAUSSIAN_TRIM:-GAUSSIAN_TRIM, GAUSSIAN_TRIM:-GAUSSIAN_TRIM, :, :] = 1
 
     def trim(element):
