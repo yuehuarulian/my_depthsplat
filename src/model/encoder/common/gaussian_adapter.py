@@ -4,6 +4,7 @@ import torch
 from einops import einsum, rearrange
 from jaxtyping import Float
 from torch import Tensor, nn
+import torch.nn.functional as F
 
 from ....geometry.projection import get_world_rays
 from ....misc.sh_rotation import rotate_sh
@@ -60,13 +61,10 @@ class GaussianAdapter(nn.Module):
     ) -> Gaussians:
         scales, rotations, sh = raw_gaussians.split((3, 4, 3 * self.d_sh), dim=-1)
 
-        scale_min = self.cfg.gaussian_scale_min
-        scale_max = self.cfg.gaussian_scale_max
-        scales = scale_min + (scale_max - scale_min) * scales.sigmoid()
-        h, w = image_shape
-        pixel_size = 1 / torch.tensor((w, h), dtype=torch.float32, device=extrinsics.device)
-        multiplier = self.get_scale_multiplier(intrinsics, pixel_size)
-        scales = scales * depths[..., None] * multiplier[..., None]
+        scales = torch.clamp(F.softplus(scales - 4.),
+            min=self.cfg.gaussian_scale_min,
+            max=self.cfg.gaussian_scale_max,
+            )
 
         assert input_images is not None
 
