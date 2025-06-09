@@ -166,3 +166,6 @@ pretrained
 outputs
 output
 checkpoints
+
+./data.zip
+./torchhub
