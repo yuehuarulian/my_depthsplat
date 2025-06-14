@@ -152,6 +152,15 @@ class ModelWrapper(LightningModule):
         if self.test_cfg.compute_scores:
             self.test_step_outputs = {}
             self.time_skip_steps_dict = {"encoder": 0, "decoder": 0}
+        
+        # self.register_hooks_on_gaussian_head()
+
+    
+    def register_hooks_on_gaussian_head(self):
+        def hook_fn(module, input, output):
+            print(f"[Hook] {module.__class__.__name__}: output mean = {output.mean().item():.4e}, std = {output.std().item():.4e}")
+        
+        self.encoder.gaussian_head[-1].register_forward_hook(hook_fn)
 
     def training_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
@@ -348,6 +357,16 @@ class ModelWrapper(LightningModule):
         self.log("info/near", batch["context"]["near"].detach().cpu().numpy().mean())
         self.log("info/far", batch["context"]["far"].detach().cpu().numpy().mean())
         self.log("info/global_step", self.global_step)  # hack for ckpt monitor
+        # # Gaussians 统计
+        # self.log("gaussians/means", gaussians.means.mean(), prog_bar=True, on_step=True, on_epoch=False)
+        # self.log("gaussians/sh_min", gaussians.harmonics.min(), prog_bar=False, on_step=True, on_epoch=False)
+        # self.log("gaussians/sh_max", gaussians.harmonics.max(), prog_bar=False, on_step=True, on_epoch=False)
+
+        # # Gaussian Head 权重统计
+        # self.log("model/gaussian_head_weight_mean", self.encoder.gaussian_head[-1].weight.mean(), on_step=True, on_epoch=False)
+        # self.log("model/gaussian_head_weight_min", self.encoder.gaussian_head[-1].weight.min(), on_step=True, on_epoch=False)
+        # self.log("model/gaussian_head_weight_max", self.encoder.gaussian_head[-1].weight.max(), on_step=True, on_epoch=False)
+
 
         # Tell the data loader processes about the current step.
         if self.step_tracker is not None:
@@ -355,8 +374,14 @@ class ModelWrapper(LightningModule):
 
         if self.global_step == 5 and self.global_rank == 0:
             os.system("nvidia-smi")
+        # dummy_loss = gaussians.means.mean()
+        # total_loss = total_loss + 0.1 * dummy_loss
 
         return total_loss
+    
+    # def on_after_backward(self):
+    #     for name, param in self.encoder.gaussian_head.named_parameters():
+    #         print(f"[After backward] {name}: grad is None? {param.grad is None}, grad mean: {param.grad.mean().item() if param.grad is not None else 'N/A'}")
 
     def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
@@ -669,24 +694,29 @@ class ModelWrapper(LightningModule):
                 ).squeeze(1)
 
             inverse_depth_pred = 1.0 / pred_depths
+            # inverse_depth_pred = pred_depths
 
+            # 拼接多视角
             concat = []
             for i in range(inverse_depth_pred.size(0)):
-                concat.append(inverse_depth_pred[i])
+                depth_vis = viz_depth_tensor(inverse_depth_pred[i].cpu().detach())
+                concat.append(depth_vis)  # [3, H, W]
+                # concat.append(inverse_depth_pred[i])
 
-            concat = torch.cat(concat, dim=1)  # [H, W*N]
+            concat = torch.cat(concat, dim=2)  # [H, W*N]
 
-            depth_viz = viz_depth_tensor(concat.cpu().detach())  # [3, H, W*N]
+            # depth_viz = viz_depth_tensor(concat.cpu().detach())  # [3, H, W*N]
 
-            # also concat images
+            # also concat images 与原图像组合显示
             input_images = batch["context"]["image"][0]  # [N, 3, H, W]
             concat_img = [img for img in input_images]
             concat_img = torch.cat(concat_img, dim=-1) * 255  # [3, H, W*N]
 
             concat = torch.cat(
-                (concat_img.cpu().detach(), depth_viz), dim=1
+                (concat_img.cpu().detach(), concat), dim=1
             )  # [3, H*2, W*N]
 
+            # imageio.imwrite('depth_concat.png', np.round(concat.permute(1, 2, 0).numpy()).astype(np.uint8))
             self.logger.log_image(
                 "depth",
                 [concat],

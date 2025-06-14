@@ -1,0 +1,38 @@
+defaults:
+  - view_sampler: bounded
+
+name: scannet_plus
+roots: [datasets/ARKitScenes]
+make_baseline_1: false
+augment: true
+
+image_shape: [242, 182]  
+# image_shape: [756, 1008]
+# image_shape: [266, 336]
+background_color: [0.0, 0.0, 0.0]
+cameras_are_circular: false
+
+baseline_epsilon: 1e-3
+max_fov: 100.0
+
+skip_bad_shape: true
+near: -1.
+far: -1.
+baseline_scale_bounds: false
+shuffle_val: true
+test_len: -1
+test_chunk_interval: 1
+
+# sort_target_index: true
+# sort_context_index: true
+
+use_index_to_load_chunk: false
+
+# train_times_per_scene: 1
+# test_times_per_scene: 1
+ori_image_shape: [1920, 1440]
+overfit_max_views: 148
+
+# mix_tartanair: false
+# no_mix_test_set: true
+load_depth: true
