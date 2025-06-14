@@ -28,8 +28,8 @@ from scipy import interpolate
 import math
 
 @dataclass
-class DatasetScannetPlusCfg(DatasetCfgCommon):
-    name: Literal["scannet_plus"]
+class DatasetARKitScenesCfg(DatasetCfgCommon):
+    name: Literal["arkit_scenes"]
     roots: list[Path]
     baseline_epsilon: float
     max_fov: float
@@ -48,8 +48,8 @@ class DatasetScannetPlusCfg(DatasetCfgCommon):
     load_depth: bool = True
 
 
-class DatasetScannetPlus(IterableDataset):
-    cfg: DatasetScannetPlusCfg
+class DatasetARKitScenes(IterableDataset):
+    cfg: DatasetARKitScenesCfg
     stage: Stage
     view_sampler: ViewSampler
 
@@ -60,7 +60,7 @@ class DatasetScannetPlus(IterableDataset):
 
     def __init__(
         self,
-        cfg: DatasetScannetPlusCfg,
+        cfg: DatasetARKitScenesCfg,
         stage: Stage,
         view_sampler: ViewSampler,
     ) -> None:
@@ -322,10 +322,6 @@ class DatasetScannetPlus(IterableDataset):
                 # 应用场景方向校正
                 corrected_pose = pose @ rotated_to_cam
                 
-                # # 转换为OpenCV坐标系
-                # arkit_to_opencv = np.diag([1.0, -1.0, -1.0, 1.0])
-                # corrected_pose = corrected_pose @ arkit_to_opencv
-                
                 # 转换为世界到相机的变换
                 w2c = np.linalg.inv(corrected_pose)[:3]  # shape: (3, 4)
                 
@@ -358,7 +354,7 @@ class DatasetScannetPlus(IterableDataset):
                 continue
 
             # 9. 加载并处理图像/深度
-            context_idx = context_idx[:1]
+            # context_idx = context_idx[:1]
             if context_idx.max().item() >= len(images) or target_idx.max().item() >= len(images):
                 print(f"Warning: 采样索引超出范围，场景 {scene_dir.name} 跳过。")
                 continue

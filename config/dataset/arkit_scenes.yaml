@@ -1,7 +1,7 @@
 defaults:
   - view_sampler: bounded
 
-name: scannet_plus
+name: arkit_scenes
 roots: [datasets/ARKitScenes]
 make_baseline_1: false
 augment: true

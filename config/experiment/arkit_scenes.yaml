@@ -1,13 +1,13 @@
 # @package _global_
 
 defaults:
-  - override /dataset: scannet_plus
+  - override /dataset: arkit_scenes
   - override /model/encoder: depthsplat
   - override /loss: [mse, lpips]
 
 wandb:
-  name: scannet_plus
-  tags: [scannet_plus, 266x336]
+  name: arkit_scenes
+  tags: [arkit_scenes, 266x336]
 
 data_loader:
   train:
@@ -50,7 +50,7 @@ dataset:
   highres: false
 
 
-  name: scannet_plus
+  name: arkit_scenes
   augment: true
 
   background_color: [0.0, 0.0, 0.0]

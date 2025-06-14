@@ -17,7 +17,8 @@ from .visualization.encoder_visualizer_depthsplat_cfg import EncoderVisualizerDe
 import torchvision.transforms as T
 import torch.nn.functional as F
 
-from .unimatch.mv_unimatch import MultiViewUniMatch
+# from .unimatch.mv_unimatch import MultiViewUniMatch
+from .unimatch.promptda import PromptDA
 from .unimatch.dpt_head import DPTHead
 
 
@@ -73,37 +74,26 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
     def __init__(self, cfg: EncoderDepthSplatCfg) -> None:
         super().__init__(cfg)
 
-        self.depth_predictor = MultiViewUniMatch(
+        # DepthSplat 的深度预测器：同时处理多视图 cost volume 和单目先验
+        self.depth_predictor = PromptDA(
+            cfg = cfg,
+            encoder = cfg.monodepth_vit_type,
             num_scales=cfg.num_scales,
-            upsample_factor=cfg.upsample_factor,
-            lowest_feature_resolution=cfg.lowest_feature_resolution,
-            vit_type=cfg.monodepth_vit_type,
-            unet_channels=cfg.depth_unet_channels,
-            grid_sample_disable_cudnn=cfg.grid_sample_disable_cudnn,
         )
 
+        # 如果仅做深度监督训练，提前返回，不再构建与高斯溅射相关的模块
         if self.cfg.train_depth_only:
             return
 
-        # upsample features to the original resolution
-        model_configs = {
-            'vits': {'in_channels': 384, 'features': 64, 'out_channels': [48, 96, 192, 384]},
-            'vitb': {'in_channels': 768, 'features': 96, 'out_channels': [96, 192, 384, 768]},
-            'vitl': {'in_channels': 1024, 'features': 128, 'out_channels': [128, 256, 512, 1024]},
-        }
-
-        self.feature_upsampler = DPTHead(**model_configs[cfg.monodepth_vit_type],
-                                        downsample_factor=cfg.upsample_factor,
-                                        return_feature=True,
-                                        num_scales=cfg.num_scales,
-                                        )
-        feature_upsampler_channels = model_configs[cfg.monodepth_vit_type]["features"]
+        feature_channels = self.depth_predictor.feature_out_channels
         
         # gaussians adapter
+        # 把高斯参数（位置、协方差、颜色、SH 系数等）转成渲染可用的格式
         self.gaussian_adapter = GaussianAdapter(cfg.gaussian_adapter)
 
         # concat(img, depth, match_prob, features)
-        in_channels = 3 + 1 + 1 + feature_upsampler_channels
+        # in_channels = 3 + 1 + 1 + feature_upsampler_channels
+        in_channels = 3 + 1 + feature_channels
         channels = self.cfg.gaussian_regressor_channels
 
         # conv regressor
@@ -113,20 +103,23 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
                     nn.Conv2d(channels, channels, 3, 1, 1),
                 ]
 
+        # 把高维输入先做一次“特征萃取 + 融合”，输出固定 channels 通道的中间表示，后续再交给 gaussian_head 细化
         self.gaussian_regressor = nn.Sequential(*modules)
 
         # predict gaussian parameters: scale, q, sh, offset, opacity
         num_gaussian_parameters = self.gaussian_adapter.d_in + 2 + 1
 
         # concat(img, features, regressor_out, match_prob)
-        in_channels = 3 + feature_upsampler_channels + channels + 1
+        # 预测每个像素对应的高斯属性向量（包含 SH 系数、协方差分量、offset、opacity 等）
+        # in_channels = 3 + feature_upsampler_channels + channels + 1
+        in_channels = 3 + feature_channels + channels
         self.gaussian_head = nn.Sequential(
-                nn.Conv2d(in_channels, num_gaussian_parameters,
-                          3, 1, 1, padding_mode='replicate'),
-                nn.GELU(),
-                nn.Conv2d(num_gaussian_parameters,
-                          num_gaussian_parameters, 3, 1, 1, padding_mode='replicate')
-            )
+            nn.Conv2d(in_channels, num_gaussian_parameters,
+                      3, 1, 1, padding_mode='replicate'),
+            nn.GELU(),
+            nn.Conv2d(num_gaussian_parameters,
+                      num_gaussian_parameters, 3, 1, 1, padding_mode='replicate')
+        )
 
         if self.cfg.init_sh_input_img:
             nn.init.zeros_(self.gaussian_head[-1].weight[10:])
@@ -148,6 +141,7 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
         device = context["image"].device
         b, v, _, h, w = context["image"].shape
 
+        # ==================== 1. 视图选择（最近邻视图索引） ====================
         if v > 3:
             with torch.no_grad():
                 xyzs = context["extrinsics"][:, :, :3, -1].detach()
@@ -158,23 +152,20 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
         else:
             cameras_dist_index = None
 
+        # ==================== 2. 深度预测（多视图+单目融合） ====================
         # depth prediction
         results_dict = self.depth_predictor(
             context["image"],
-            attn_splits_list=[2],
-            min_depth=1. / context["far"],
-            max_depth=1. / context["near"],
-            intrinsics=context["intrinsics"],
-            extrinsics=context["extrinsics"],
-            nn_matrix=cameras_dist_index,
+            context["depth"],
         )
 
         # list of [B, V, H, W], with all the intermediate depths
         depth_preds = results_dict['depth_preds']
 
-        # [B, V, H, W]
+        # [B, V, H_pad, W_pad]
         depth = depth_preds[-1]
 
+        # ==================== 3. 仅深度训练分支 ====================
         if self.cfg.train_depth_only:
             # convert format
             # [B, V, H*W, 1, 1]
@@ -206,48 +197,37 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
                 "depths": depths
             }
 
-        # features [BV, C, H, W]
-        features = self.feature_upsampler(results_dict["features_mono_intermediate"],
-                                          cnn_features=results_dict["features_cnn_all_scales"][::-1],
-                                          mv_features=results_dict["features_mv"][
-                                          0] if self.cfg.num_scales == 1 else results_dict["features_mv"][::-1]
-                                          )
-
-        # match prob from softmax
-        # [BV, D, H, W] in feature resolution
-        match_prob = results_dict['match_probs'][-1]
-        match_prob = torch.max(match_prob, dim=1, keepdim=True)[
-            0]  # [BV, 1, H, W]
-        match_prob = F.interpolate(
-            match_prob, size=depth.shape[-2:], mode='nearest')
-
+        # ==================== 6. Gaussian 参数预测 ====================
+        features = results_dict["features_mono_intermediate"][-1]
         # unet input
         concat = torch.cat((
-            rearrange(context["image"], "b v c h w -> (b v) c h w"),
-            rearrange(depth, "b v h w -> (b v) () h w"),
-            match_prob,
+            rearrange(context["image"], "b v c h w -> (b v) c h w"), # [bv, C, H, W]
+            rearrange(depth, "b v h w -> (b v) () h w"), # [bv, H, W]
             features,
         ), dim=1)
 
+        # 先用一个小网络（gaussian_regressor）对拼接后的特征做一次预处理
+        # 相当于论文里描述的轻量 U-Net，用来把图像、深度、匹配概率和特征融合起来，初步预测高斯参数
         out = self.gaussian_regressor(concat)
 
         concat = [out,
                     rearrange(context["image"],
                             "b v c h w -> (b v) c h w"),
                     features,
-                    match_prob]
+                    ]
 
         out = torch.cat(concat, dim=1)
 
+        # 再用 gaussian_head 输出最终的高斯元参数 (α, Σ, c)
         gaussians = self.gaussian_head(out)  # [BV, C, H, W]
 
         gaussians = rearrange(gaussians, "(b v) c h w -> b v c h w", b=b, v=v)
 
+        # ==================== 7. 组织 depths & densities & raw_gaussians ====================
         depths = rearrange(depth, "b v h w -> b v (h w) () ()")
 
         # [B, V, H*W, 1, 1]
-        densities = rearrange(
-            match_prob, "(b v) c h w -> b v (c h w) () ()", b=b, v=v)
+        # densities = rearrange(match_prob, "(b v) c h w -> b v (c h w) () ()", b=b, v=v)
         # [B, V, H*W, 84]
         raw_gaussians = rearrange(
             gaussians, "b v c h w -> b v (h w) c")
@@ -268,16 +248,17 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
             depths = torch.cat((intermediate_depths, depths), dim=0)
 
             # shared color head
-            densities = torch.cat([densities] * num_depths, dim=0)
+            # densities = torch.cat([densities] * num_depths, dim=0)
             raw_gaussians = torch.cat(
                 [raw_gaussians] * num_depths, dim=0)
 
             b *= num_depths
 
-        # [B, V, H*W, 1, 1]
+        # [B, V, H*W, 1, 1] [1, 4, 758016, 1, 1]
         opacities = raw_gaussians[..., :1].sigmoid().unsqueeze(-1)
         raw_gaussians = raw_gaussians[..., 1:]
         
+        # ==================== 8. 从特征到 Gaussian 参数 ====================
         # Convert the features and depths into Gaussians.
         xy_ray, _ = sample_image_grid((h, w), device)
         xy_ray = rearrange(xy_ray, "h w xy -> (h w) () xy")
@@ -291,6 +272,7 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
             torch.tensor((w, h), dtype=torch.float32, device=device)
         xy_ray = xy_ray + (offset_xy - 0.5) * pixel_size
 
+        # ==================== 9. 调用 Gaussian Adapter 构建最终 Gaussians 对象 ====================
         sh_input_images = context["image"]
 
         if self.cfg.supervise_intermediate_depth and len(depth_preds) > 1:
@@ -331,6 +313,7 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
                 input_images=sh_input_images if self.cfg.init_sh_input_img else None,
             )
 
+        # ==================== 10. 可视化输出（可选） ====================
         # Dump visualizations if needed.
         if visualization_dump is not None:
             visualization_dump["depth"] = rearrange(
@@ -362,6 +345,7 @@ class EncoderDepthSplat(Encoder[EncoderDepthSplatCfg]):
             ),
         )
 
+        # ==================== 11. 返回结果 ====================
         if self.cfg.return_depth:
             # return depth prediction for supervision
             depths = rearrange(

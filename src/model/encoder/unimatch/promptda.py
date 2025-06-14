@@ -23,10 +23,9 @@ class PromptDA(nn.Module):
                 cfg,
                 num_scales=1,
                 encoder='vitl',
-                #  ckpt_path='checkpoints/promptda_vitl.ckpt'
                  ):
         super().__init__()
-        # self.cfg = cfg
+
         self.num_scales = num_scales
         self.model_config = model_configs[encoder]
         # load DINOv2 backbone
@@ -37,12 +36,13 @@ class PromptDA(nn.Module):
             f'dinov2_{encoder}14',
             source='local',
             pretrained=False)
-        dim = self.pretrained.blocks[0].attn.qkv.in_features
+        self.feature_out_channels = self.pretrained.blocks[0].attn.qkv.in_features # 383
+        
 
         # DPTHead 回归单通道深度
         self.depth_head = DPTHead(
             nclass=1,
-            in_channels=dim,
+            in_channels=self.feature_out_channels,
             features=self.model_config['features'],
             out_channels=self.model_config['out_channels'],
             use_bn=self.use_bn,
@@ -131,7 +131,7 @@ class PromptDA(nn.Module):
             # resize to 1/8 resolution
             curr_features = F.interpolate(
                 curr_features,
-                (H_pad // 8, W_pad // 8),
+                (H, W),
                 mode="bilinear",
                 align_corners=True,
             )

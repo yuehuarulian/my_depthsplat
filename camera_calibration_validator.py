@@ -12,6 +12,8 @@ from scipy.spatial.transform import Rotation as R
 import quaternion
 import cv2
 import decimal
+import os
+import imageio
 
 class CameraCalibrationValidator:
     def __init__(self, scene_dir, cfg):
@@ -167,16 +169,6 @@ class CameraCalibrationValidator:
                 continue
         return valid_data
 
-    def compute_c2w_from_pose(self, rx, ry, rz, tx, ty, tz):
-        """从轴角和平移构建c2w矩阵"""
-        rot = R.from_rotvec([rx, ry, rz]).as_matrix()
-        
-        c2w = torch.eye(4, dtype=torch.float32)
-        c2w[:3, :3] = torch.tensor(rot, dtype=torch.float32)
-        c2w[:3, 3] = torch.tensor([tx, ty, tz], dtype=torch.float32)
-        
-        return c2w, 0
-    
     def pixel_to_world(self, depth_map, intrinsics, c2w, sample_step=10):
         """将深度图转换为世界坐标系下的3D点"""
         fx, fy, cx, cy = intrinsics
@@ -213,33 +205,6 @@ class CameraCalibrationValidator:
         points_world = c2w_np @ points_cam
         
         return points_world[:3].T, (u, v)  # 返回3D点和对应的像素坐标
-    
-    def validate_reprojection(self, frame1, frame2):
-        """验证两帧之间的重投影一致性"""
-        print(f"验证帧 {frame1['filename']} 和 {frame2['filename']} 之间的重投影...")
-        
-        # 将frame1的3D点投影到frame2
-        points_3d_1, pixels_1 = self.pixel_to_world(
-            frame1['depth'], frame1['intrinsics'], frame1['c2w']
-        )
-        
-        # 将3D点投影到frame2的图像平面
-        projected_pixels = self.project_to_image(
-            points_3d_1, frame2['intrinsics'], frame2['c2w']
-        )
-        
-        # 在frame2中采样对应的深度值
-        points_3d_2, pixels_2 = self.pixel_to_world(
-            frame2['depth'], frame2['intrinsics'], frame2['c2w']
-        )
-        
-        return {
-            'points_3d_1': points_3d_1,
-            'points_3d_2': points_3d_2,
-            'projected_pixels': projected_pixels,
-            'original_pixels_1': pixels_1,
-            'original_pixels_2': pixels_2
-        }
     
     def project_to_image(self, points_3d, intrinsics, c2w):
         """将3D点投影到图像平面"""
@@ -292,57 +257,16 @@ class CameraCalibrationValidator:
         
         # 如果平均距离很小，说明外参可能是正确的
         if np.mean(min_distances) < 0.05:  # 5cm
-            print("✅ 相机外参可能是正确的（点云对齐良好）")
+            print("相机外参可能是正确的（点云对齐良好）")
         else:
-            print("❌ 相机外参可能有问题（点云对齐较差）")
+            print("相机外参可能有问题（点云对齐较差）")
     
-    def run_validation(self):
-        """运行完整的验证流程"""
-        print("开始加载场景数据...")
-        valid_data = self.load_scene_data1()
-        
-        if len(valid_data) < 2:
-            print("有效帧数不足，无法进行验证")
-            return
-        
-        print(f"加载了 {len(valid_data)} 个有效帧")
-        
-        # 选择两帧进行验证（时间间隔不要太大）
-        frame1 = valid_data[0]
-        frame2 = valid_data[min(len(valid_data)-1, 100)]  # 选择第40帧或最后一帧
-        
-        print(f"使用帧 {frame1['filename']} 和 {frame2['filename']} 进行验证")
-        
-        # 执行重投影验证
-        validation_results = self.validate_reprojection(frame1, frame2)
-        
-        return validation_results
-
 # 使用示例
 class MockConfig:
     def __init__(self):
         self.highres = False  # 设置为True使用高分辨率深度图
         self.near = 0.1
         self.far = 1000.0
-
-def validate_camera_calibration(scene_path):
-    """
-    验证相机标定的主函数
-    
-    Args:
-        scene_path: 场景文件夹路径
-    """
-    cfg = MockConfig()
-    validator = CameraCalibrationValidator(scene_path, cfg)
-    
-    try:
-        results = validator.run_validation()
-        return results
-    except Exception as e:
-        print(f"验证过程中出错: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
 
 def detailed_reprojection_analysis(scene_path):
     """详细的重投影误差分析"""
@@ -354,7 +278,7 @@ def detailed_reprojection_analysis(scene_path):
         print("数据不足")
         return
     
-    frame1 = valid_data[10]
+    frame1 = valid_data[0]
     frame2 = valid_data[20]
     print(f"使用帧 {frame1['filename']} 和 {frame2['filename']} 进行详细重投影分析")
     
@@ -404,9 +328,9 @@ def detailed_reprojection_analysis(scene_path):
             print(f"  95%分位数误差: {np.percentile(valid_errors, 95):.4f} m")
             
             if np.mean(valid_errors) < 0.1:  # 10cm
-                print("✅ 深度重投影误差较小，外参可能正确")
+                print("深度重投影误差较小，外参可能正确")
             else:
-                print("❌ 深度重投影误差较大，外参可能有问题")
+                print("深度重投影误差较大，外参可能有问题")
     
     return [points_3d_1, points_3d_2]
 
@@ -473,8 +397,6 @@ def visualize_3d_points2(validation_results, max_points=5000):
     plt.savefig("merged_pointcloud_matplotlib.png", dpi=300)
     print("✅ 图像保存为 merged_pointcloud_matplotlib.png")
 
-import os
-import imageio
 def generate_pointcloud_sequence_video(output_video="pointcloud_sequence.mp4", max_points=5000):
     """
     为每帧 valid_data 生成点云可视化图像，并组合成视频。
@@ -556,9 +478,6 @@ def generate_pointcloud_sequence_video(output_video="pointcloud_sequence.mp4", m
 if __name__ == "__main__":
     # 使用示例
     scene_path = "/home/featurize/data/my_depthsplat/datasets/ARKitScenes/raw/Training/40753679"  # 替换为你的场景路径
-    
-    # # print("=== 基础重投影验证 ===")
-    # # validate_camera_calibration(scene_path)
     
     # print("\n=== 详细重投影误差分析 ===")
     # validation_results = detailed_reprojection_analysis(scene_path)
