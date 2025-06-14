@@ -47,6 +47,7 @@ def cyan(text: str) -> str:
     config_name="main",
 )
 def train(cfg_dict: DictConfig):
+    # 如果是训练模式且需要在验证间隔后评估模型，构造评估用配置
     if cfg_dict["mode"] == "train" and cfg_dict["train"]["eval_model_every_n_val"] > 0:
         eval_cfg_dict = copy.deepcopy(cfg_dict)
         dataset_dir = str(cfg_dict["dataset"]["roots"]).lower()
@@ -57,8 +58,11 @@ def train(cfg_dict: DictConfig):
                 eval_path = "assets/dl3dv_start_0_distance_50_ctx_6v_tgt_8v.json"
             else:
                 raise ValueError("unsupported number of views for dl3dv")
+        elif "arkitscenes" in dataset_dir:
+            eval_path = "assets/test_index_acid.json" # TODO
         else:
             raise Exception("Fail to load eval index path")
+        # 设置评估视图采样器
         eval_cfg_dict["dataset"]["view_sampler"] = {
             "name": "evaluation",
             "index_path": eval_path,
@@ -68,24 +72,25 @@ def train(cfg_dict: DictConfig):
     else:
         eval_cfg = None
 
+    # 加载主配置并设置全局
     cfg = load_typed_root_config(cfg_dict)
     set_cfg(cfg_dict)
 
-    # Set up the output directory.
+    # Set up the output directory. # 设置输出目录
     if cfg_dict.output_dir is None:
         output_dir = Path(
             hydra.core.hydra_config.HydraConfig.get()["runtime"]["output_dir"]
         )
-    else:  # for resuming
+    else:  # for resuming # 恢复训练时指定的输出目录
         output_dir = Path(cfg_dict.output_dir)
         os.makedirs(output_dir, exist_ok=True)
     print(cyan(f"Saving outputs to {output_dir}."))
 
-    # Set up logging with wandb.
+    # Set up logging with wandb. # 配置 W&B 日志和回调
     callbacks = []
     if cfg_dict.wandb.mode != "disabled" and cfg.mode == "train":
         wandb_extra_kwargs = {}
-        if cfg_dict.wandb.id is not None:
+        if cfg_dict.wandb.id is not None: # 支持指定 run id 以便恢复
             wandb_extra_kwargs.update({'id': cfg_dict.wandb.id,
                                        'resume': "must"})
         logger = WandbLogger(
@@ -99,14 +104,14 @@ def train(cfg_dict: DictConfig):
             config=OmegaConf.to_container(cfg_dict),
             **wandb_extra_kwargs,
         )
-        callbacks.append(LearningRateMonitor("step", True))
+        callbacks.append(LearningRateMonitor("step", True)) # 学习率监控
 
         if wandb.run is not None:
-            wandb.run.log_code("src")
+            wandb.run.log_code("src") # 上传源码
     else:
         logger = LocalLogger()
 
-    # Set up checkpointing.
+    # Set up checkpointing. # 设置模型检查点回调
     callbacks.append(
         ModelCheckpoint(
             output_dir / "checkpoints",
@@ -119,7 +124,7 @@ def train(cfg_dict: DictConfig):
     for cb in callbacks:
         cb.CHECKPOINT_EQUALS_CHAR = '_'
 
-    # Prepare the checkpoint for loading.
+    # Prepare the checkpoint for loading. # 准备加载检查点
     if cfg.checkpointing.resume:
         if not os.path.exists(output_dir / 'checkpoints'):
             checkpoint_path = None
@@ -132,12 +137,14 @@ def train(cfg_dict: DictConfig):
     # This allows the current step to be shared with the data loader processes.
     step_tracker = StepTracker()
 
-    trainer = Trainer(
+    trainer = Trainer( # 初始化 Trainer
         max_epochs=-1,
         accelerator="gpu",
         logger=logger,
-        devices=torch.cuda.device_count(),
-        strategy='ddp' if torch.cuda.device_count() > 1 else "auto",
+        # devices=torch.cuda.device_count(),
+        devices=1,
+        # strategy='ddp' if torch.cuda.device_count() > 1 else "auto",
+        strategy="auto",
         callbacks=callbacks,
         val_check_interval=cfg.trainer.val_check_interval,
         enable_progress_bar=cfg.mode == "test",
@@ -149,6 +156,7 @@ def train(cfg_dict: DictConfig):
     )
     torch.manual_seed(cfg_dict.seed + trainer.global_rank)
 
+    # 构建模型和数据模块
     encoder, encoder_visualizer = get_encoder(cfg.model.encoder)
 
     model_wrapper = ModelWrapper(
@@ -171,6 +179,7 @@ def train(cfg_dict: DictConfig):
         global_rank=trainer.global_rank,
     )
 
+    # 打印数据集大小
     if cfg.mode == "train":
         print("train:", len(data_module.train_dataloader()))
         print("val:", len(data_module.val_dataloader()))
@@ -178,37 +187,25 @@ def train(cfg_dict: DictConfig):
 
     strict_load = not cfg.checkpointing.no_strict_load
 
+    # 根据模式加载预训练权重并运行
     if cfg.mode == "train":
-        # only load monodepth
+        # only load monodepth # 加载单目深度预训练模型
         if cfg.checkpointing.pretrained_monodepth is not None:
             strict_load = False
-            pretrained_model = torch.load(cfg.checkpointing.pretrained_monodepth, map_location='cpu')
-            if 'state_dict' in pretrained_model:
-                pretrained_model = pretrained_model['state_dict']
-
-            model_wrapper.encoder.depth_predictor.load_state_dict(pretrained_model, strict=strict_load)
+            model_wrapper.encoder.depth_predictor.load_checkpoint(cfg.checkpointing.pretrained_monodepth)
             print(
                 cyan(
                     f"Loaded pretrained monodepth: {cfg.checkpointing.pretrained_monodepth}"
                 )
             )
-
-        # load pretrained mvdepth
-        if cfg.checkpointing.pretrained_mvdepth is not None:
-            pretrained_model = torch.load(cfg.checkpointing.pretrained_mvdepth, map_location='cpu')['model']
-
-            model_wrapper.encoder.depth_predictor.load_state_dict(pretrained_model, strict=False)
-            print(
-                cyan(
-                    f"Loaded pretrained mvdepth: {cfg.checkpointing.pretrained_mvdepth}"
-                )
-            )
         
-        # load full model
+        # load full model # 加载整个模型权重
         if cfg.checkpointing.pretrained_model is not None:
             pretrained_model = torch.load(cfg.checkpointing.pretrained_model, map_location='cpu')
             if 'state_dict' in pretrained_model:
                 pretrained_model = pretrained_model['state_dict']
+            
+            pretrained_model = {k: v for k, v in pretrained_model.items() if not k.startswith('encoder.depth_predictor.')}
 
             model_wrapper.load_state_dict(pretrained_model, strict=strict_load)
             print(
@@ -217,7 +214,7 @@ def train(cfg_dict: DictConfig):
                 )
             )
 
-        # load pretrained depth
+        # load pretrained depth # 加载深度模块预训练权重 只深度训练的时候
         if cfg.checkpointing.pretrained_depth is not None:
             pretrained_model = torch.load(cfg.checkpointing.pretrained_depth, map_location='cpu')['model']
 
@@ -231,11 +228,23 @@ def train(cfg_dict: DictConfig):
             
         trainer.fit(model_wrapper, datamodule=data_module, ckpt_path=checkpoint_path)
     else:
+        # only load monodepth # 加载单目深度预训练模型
+        if cfg.checkpointing.pretrained_monodepth is not None:
+            strict_load = False
+            model_wrapper.encoder.depth_predictor.load_checkpoint(cfg.checkpointing.pretrained_monodepth)
+            print(
+                cyan(
+                    f"Loaded pretrained monodepth: {cfg.checkpointing.pretrained_monodepth}"
+                )
+            )
+        
         # load full model
         if cfg.checkpointing.pretrained_model is not None:
             pretrained_model = torch.load(cfg.checkpointing.pretrained_model, map_location='cpu')
             if 'state_dict' in pretrained_model:
                 pretrained_model = pretrained_model['state_dict']
+
+            pretrained_model = {k: v for k, v in pretrained_model.items() if not k.startswith('encoder.feature_upsampler')}
 
             model_wrapper.load_state_dict(pretrained_model, strict=strict_load)
             print(
@@ -263,6 +272,15 @@ def train(cfg_dict: DictConfig):
         )
 
 
+#  python -m src.main +experiment=arkit_scenes data_loader.train.batch_size=8 dataset.test_chunk_interval
+# =10 trainer.max_steps=1500 trainer.num_nodes=1 model.encoder.num_scales=2 model.encoder.upsample_factor=4 model.encoder.lowest_feat
+# ure_resolution=1 model.encoder.monodepth_vit_type=vitb checkpointing.pretrained_monodepth=pretrained/depth-anything/model.ckpt outp
+# ut_dir=checkpoints/test
+
+# python -m src.main +experiment=arkit_scenes data_loader.train.batch_size=8 dataset.test_chunk_interval=10 trainer.max_steps=1500 trainer.num_nodes=1 model.encoder.num_scales=2 model.encoder.upsample_factor=4 
+# model.encoder.lowest_feature_resolution=1 model.encoder.monodepth_vit_type=vits checkpointing.pretrained_monodepth=pretrained/depth-anything/model_s.ckpt output_dir=checkpoints/test
+
+# python -m src.main +experiment=arkit_scenes data_loader.train.batch_size=4 dataset.test_chunk_interval=10 trainer.max_steps=20000 trainer.num_nodes=1 model.encoder.num_scales=2 model.encoder.upsample_factor=4 model.encoder.lowest_feature_resolution=1 model.encoder.monodepth_vit_type=vits checkpointing.pretrained_monodepth=pretrained/depth-anything/model_s.ckpt output_dir=checkpoints/my_depthsplat
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
     torch.set_float32_matmul_precision('high')
